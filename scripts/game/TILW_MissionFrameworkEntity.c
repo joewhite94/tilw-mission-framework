@@ -199,6 +199,7 @@ class TILW_MissionFrameworkEntity: GenericEntity
 	}
 	
 	ref map<string, int> m_aliveFactionPlayers = new map<string, int>();
+	ref map<string, int> m_totalFactionPlayers = new map<string, int>();
 	
 	protected void RecountPlayers()
 	{
@@ -211,15 +212,17 @@ class TILW_MissionFrameworkEntity: GenericEntity
 		SCR_FactionManager factionManager = SCR_FactionManager.Cast(GetGame().GetFactionManager());
 		foreach (int playerId : playerIds)
 		{
+			Faction f = factionManager.GetPlayerFaction(playerId);
+			if (!f) continue;
+			string fkey = f.GetFactionKey();
+			m_totalFactionPlayers.Set(fkey, m_totalFactionPlayers.get(fkey) + 1);
+
 			IEntity controlled = GetGame().GetPlayerManager().GetPlayerControlledEntity(playerId);
 			if (!controlled) continue;
 			SCR_ChimeraCharacter cc = SCR_ChimeraCharacter.Cast(controlled);
 			if (!cc) continue;
 			if (!SCR_AIDamageHandling.IsAlive(controlled)) continue;
 			
-			Faction f = factionManager.GetPlayerFaction(playerId);
-			if (!f) continue;
-			string fkey = f.GetFactionKey();
 			m_aliveFactionPlayers.Set(fkey, m_aliveFactionPlayers.Get(fkey) + 1);
 		}
 		
@@ -263,11 +266,14 @@ class TILW_MissionFrameworkEntity: GenericEntity
 [BaseContainerProps(), BaseContainerCustomStringTitleField("FactionPlayersKilled Flag")]
 class TILW_FactionPlayersKilledFlag
 {
-	[Attribute("", UIWidgets.Auto, desc: "Flag to be set when there are no alive faction players, or cleared when there are")]
+	[Attribute("", UIWidgets.Auto, desc: "Flag to be set when the percentage of alive faction players falls below the ratio, or cleared when above the ratio")]
 	protected string m_flagName;
 	
 	[Attribute("", UIWidgets.Auto, desc: "Key of examined faction")]
 	protected string m_factionKey;
+
+	[Attribute("0", UIWidgets.Auto, desc: "Ratio of alive faction players under which the flag is set.")]
+	protected float m_factionRatio;
 	
 	void Evaluate()
 	{
@@ -277,7 +283,7 @@ class TILW_FactionPlayersKilledFlag
 		TILW_MissionFrameworkEntity mfe = TILW_MissionFrameworkEntity.GetInstance();
 		if (!GetGame().GetFactionManager().GetFactionByKey(m_factionKey)) return;
 		
-		if (mfe.m_aliveFactionPlayers.Get(m_factionKey) > 0) mfe.ClearMissionFlag(m_flagName);
+		if (mfe.m_totalFactionPlayers.Get(m_factionKey) > 0 && (mfe.m_aliveFactionPlayers.Get(m_factionKey) / mfe.m_totalFactionPlayers.Get(m_factionKey)) >= m_factionRatio) mfe.ClearMissionFlag(m_flagName);
 		else mfe.SetMissionFlag(m_flagName);
 	}
 }
